@@ -1,0 +1,45 @@
+{
+    "1": {
+        "users": 3,
+        "kubki": 12,
+        "money": 18305915585,
+        "leader": "819016396",
+        "last_reyd": 1750767760,
+        "nickname": "ƙrųɬơყ ƈɧɛƖ😮‍💨",
+        "clan": "Krutoyyy",
+        "role": "Лидер",
+        "users_ids": [
+            "819016396",
+            "863516762",
+            "811081480"
+        ],
+        "max_users": 53,
+        "level": [
+            "2",
+            "4",
+            "3"
+        ],
+        "photo": "https://sun9-74.userapi.com/s/v1/ig2/8VC6obpHBJPh8qxZCnpmvRK55fNPGh4Uf9CU2Q3aDJqU-feGRn9wCh4rlMR--xJAlj6KYZTYuaaeXniDslEZFWmz.jpg?quality=95&as=32x44,48x66,72x98,108x147,160x218,240x328,360x491,480x655,540x737,640x874,720x983,1080x1474,1200x1638&from=bu&cs=1200x0"
+    },
+    "2": {
+        "users": 2,
+        "kubki": -5,
+        "money": 8821560746,
+        "leader": "753569419",
+        "last_reyd": 1750617716,
+        "nickname": "یو دیٹھ",
+        "clan": "ꪊꪻ",
+        "role": "Лидер",
+        "users_ids": [
+            "753569419",
+            "887183504"
+        ],
+        "max_users": 51,
+        "level": [
+            "4",
+            "2",
+            "3"
+        ],
+        "photo": "https://sun9-68.userapi.com/s/v1/ig2/VnSJWyJ8GQe7chmLkoys2nXtw0WGXnFA6qdS4H2VMNeF0wsCLEtDLdX8_DhLVOvFFZt0Y6MvUtNMhvojSKIOmtwj.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080&from=bu&cs=1080x0"
+    }
+}
