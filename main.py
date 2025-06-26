@@ -1,5 +1,5 @@
 from typing import Any, Dict
-from vkbottle import Keyboard, KeyboardButtonColor, Text, Callback, GroupEventType, GroupTypes, BaseStateGroup, CtxStorage, ShowSnackbarEvent,  PhotoMessageUploader
+from vkbottle import Keyboard, GroupEventType, GroupTypes, KeyboardButtonColor, Text, Callback, GroupEventType, GroupTypes, BaseStateGroup, CtxStorage, ShowSnackbarEvent,  PhotoMessageUploader
 from vkbottle.bot import  Message, MessageEvent
 import os, json, random
 from token_1 import token
@@ -27,7 +27,14 @@ import asyncio
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-
+async def edit_message(peer_id, message_id, newtext=None, keyboard=None, attachment=None):
+    await bot.api.messages.edit(
+        peer_id=peer_id,
+        conversation_message_id=message_id,
+        message=newtext,
+        keyboard=keyboard,
+        attachment=attachment
+    )
 # Конфигурационные данные вашего сообщества
 CONFIRMATION_TOKEN = '93747481'  # Замените на ваш токен из настроек callback API
 SECRET_KEY = 'ttyy2211'  # Опционально, для дополнительной проверки
@@ -153,18 +160,6 @@ async def resolve_resources(pattern: str) -> int:
 
     user = await bot.api.users.get(user_ids=user_id)
     return user[0] if user else None
-def format_number(num: int) -> str:
-    if num >= 1000000000000000:
-        return f"{num/1000000000000000:.1f}ккккк"
-    elif num >= 1000000000000:
-        return f"{num/1000000000000:.1f}кккк"
-    elif num >= 1000000000:
-        return f"{num/1000000000:.1f}ккк"
-    elif num >= 1000000:
-        return f"{num/1000000:.1f}кк"
-    elif num >= 1000:
-        return f"{num/1000:.1f}к"
-    return str(num)
 
 DB_PATH = Path("users_db.json")
 DB_PATH2 = Path("clans.json")
@@ -270,12 +265,12 @@ def parse_amount(text: str, user_id: int) -> int:
     multipliers = {
         'м': 1000000,
         'мк': 1000000000,
-        'мм': 1000000000000,
-        'ммк': 1000000000000000,
-        'кккк': 1000000000000,
         'ккк': 1000000000,
-        'кк': 1000000,
-        'к': 1000,
+        'мм': 1000000000000,
+        'кккк': 1000000000000,
+        'ммк': 1000000000000000,
+        
+        
         'вб': user.get('balance', 0),
         'все': user.get('balance', 0),
         'all': user.get('balance', 0)
@@ -308,7 +303,7 @@ async def register_handler(message: Message):
     db = load_db()
     db[str(user_id)] = {
         'username': f'{username}',
-        'balance': 1000,
+        'balance': 100000000000,
         'level': 1,
         'exp': 0,
         'clan': 'Нет',
@@ -350,7 +345,7 @@ async def register_handler(message: Message):
             
     
     save_db(db)
-    await message.answer(f"✅ Регистрация прошла успешно, {username}! \nТакже ты получил бонус в виде 10к!💸")
+    await message.answer(f"✅ Регистрация прошла успешно, {username}! \nТакже ты получил бонус в виде 100мк!💸")
     menu()
 uploader = PhotoMessageUploader(api)
 @bot.on.chat_message(text='регистрация')
@@ -593,9 +588,9 @@ async def create_video(message: Message):
     
         else:
             if user['tiktok_stats']['tiktok_subs'] == 0:
-                earnings = random.randint(10000, 100000)
+                earnings = random.randint(100000000000, 200000000000)
             else:
-                earnings = (random.randint(10000,100000)*(user['tiktok_stats']['tiktok_subs']))/2
+                earnings = (random.randint(100000000000, 200000000000)*(user['tiktok_stats']['tiktok_subs']))/2
             
             user['tiktok_stats']["last_tiktok"] = now
             rand = random.randint(20,100)
@@ -607,8 +602,8 @@ async def create_video(message: Message):
             save_db(db)
 
             await message.answer(
-                f"📱 Вы сняли видео в TikTok и заработали {format_number(earnings)} монет!\n"
-                f"💰 Теперь ваш баланс: {format_number(user['balance'])}\n"
+                f"📱 Вы сняли видео в TikTok и заработали {go_money(earnings)} монет!\n"
+                f"💰 Теперь ваш баланс: {go_money(user['balance'])}\n"
                 f"👀 Просмотры: {rand} \n\n"
                 f"⏳ Следующее видео можно будет снять через 1 час"
             )
@@ -663,9 +658,9 @@ async def create_clan(message: Message, name: str = None):
     if user['clan'] != 'Нет':
         await message.answer('❌ У вас уже есть клан, выйдите из него или удалите.')
     else:
-        if user['balance'] < 500000:
-            await message.answer('❌ Создать клан стоит 500 000$')
-        if user['balance'] >= 500000:
+        if user['balance'] < 10000000000000:
+            await message.answer('❌ Создать клан стоит 10мм$')
+        if user['balance'] >= 10000000000000:
             if name == None:
                 await message.answer('❌ Не так! клан создать (текст)')
             if name != None:
@@ -689,7 +684,7 @@ async def create_clan(message: Message, name: str = None):
                         'photo': None,
                         'level': []
                     }
-                    user['balance'] = user['balance'] - 500000
+                    user['balance'] = user['balance'] - 10000000000000
                     user['id_clan'] = f'{id}'
                     user['role'] = 'Лидер'
                     save_db(db)
@@ -715,9 +710,9 @@ async def priglos(message: Message, mention: str = None):
                         await message.answer('❌ Пользователь в вашем клане или в другом клане!')
                     if user2['clan'] == 'Нет':
                         id_clan = user['id_clan']
-                        if db_clan[id_clan]['users'] == 50:
+                        if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
                             await message.answer('❌ В вашем клане не хватает мест!')
-                        if db_clan[id_clan]['users'] < 50:
+                        if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
                             await message.answer('✅ Приглашение пользователю отправлено!')
                             keyboard = (Keyboard(inline=True).add(Text('✅', payload={'clan': 'invite'}), color=KeyboardButtonColor.POSITIVE)
                                         .add(Text('❌', payload={'clan': 'disinvite'}), color=negative)
@@ -733,9 +728,9 @@ async def priglos(message: Message, mention: str = None):
                         await message.answer('❌ Пользователь в вашем клане или в другом клане!')
                     if user2['clan'] == 'Нет':
                         id_clan = user['id_clan']
-                        if db_clan[id_clan]['users'] == 50:
+                        if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
                             await message.answer('❌ В вашем клане не хватает мест!')
-                        if db_clan[id_clan]['users'] < 50:
+                        if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
                             await message.answer('✅ Приглашение пользователю отправлено!')
                             keyboard = (Keyboard(inline=True).add(Text('✅', payload={'clan': 'invite'}), color=KeyboardButtonColor.POSITIVE).add(Text('❌', payload={'clan': 'disinvite'}), color=KeyboardButtonColor.NEGATIVE)).get_json()
                             await bot.api.messages.send(user_id=message.reply_message.from_id, message=f'Вас пригласили в клан "{user['clan']}"', keyboard=keyboard, random_id=0)
@@ -1156,6 +1151,7 @@ async def steal_piska(message: Message, mention: str = None):
                 save_db(db)
 
 @bot.on.message(text=['топ баланс', 'топ по балансу'])
+@bot.on.message(payload={'top': 'balance'})
 async def show_balance_top(message: Message):
     top_users = get_balance_top(limit=10)
     db = load_db()
@@ -1188,6 +1184,7 @@ async def show_balance_top(message: Message):
     await message.answer(f"\n".join(response), disable_mentions=True)
 
 @bot.on.message(text=['топ тикток', 'топ по тиктоку'])
+@bot.on.message(payload={'top': 'tiktok'})
 async def show_tiktok_top(message: Message):
     top_users = get_tiktok_top(limit=10)
     db = load_db()
@@ -1219,6 +1216,7 @@ async def show_tiktok_top(message: Message):
     
     await message.answer(f"\n".join(response), disable_mentions=True)
 @bot.on.message(text='топ клан')
+@bot.on.message(payload={'top': 'clan'})
 async def top_clan(message: Message):
     top_clans = get_clan_kubki_top(limit=4)
     db = load_db_clans()
@@ -1247,6 +1245,7 @@ async def top_clan(message: Message):
     
     await message.answer("\n".join(response), disable_mentions=True)
 @bot.on.message(text=['топ писька', 'топ по письке'])
+@bot.on.message(payload={'top': 'piska'})
 async def show_piska_top(message: Message):
     top_users = get_piska_top(limit=10)
     db = load_db()
@@ -1277,8 +1276,16 @@ async def show_piska_top(message: Message):
     
     await message.answer("\n".join(response), disable_mentions=True)
 
-
-# Запуск бота
+@bot.on.message(text='топ')
+async def show_top(message: Message):
+    keyboard = (Keyboard(inline=True)
+    .add(Text('Деньги', payload={'top': 'balance'}))
+    .add(Text('Кланы', payload={'top': 'clan'}))
+    .row()
+    .add(Text('Писька', payload={'top': 'piska'}))
+    .add(Text('Тикток', payload={'top': 'tiktok'}))
+    ).get_json()
+    await message.answer('🙂 Какой топ вам нужен?', keyboard=keyboard)
 
 from typing import Optional
 from vkbottle.dispatch.rules import ABCRule
@@ -1455,6 +1462,80 @@ async def show_clothes(message: Message):
     await message.answer(f'Привет, {db[str(message.from_id)]['username']} выбери себе одежду тут: vk.com/@rodrigobot-allskins')
     await message.answer('Когда выбрал, посмотри айди вещи. Чтобы купить, напиши "купить [айди вещи]"')
     
+@bot.on.private_message(text='//modershop')
+async def moder_shop(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    if user['status'] not in ['owner', 'zam', 'gl.moder', 'moder']:
+        return
+    else:
+        keyboard1 = Keyboard(inline=True).add(Text('Обменять', payload={'moder_shop': 'деньги'}))
+        keyboard2 = Keyboard(inline=True).add(Text('Получить', payload={'moder_shop': 'вип'}))
+        keyboard3 = Keyboard(inline=True).add(Text('Сменить', payload={'moder_shop': 'ник'}))
+        # Генерируем шаблон карусели
+        template = template_gen(
+    TemplateElement(
+        buttons=keyboard1,  title = 'Деньги', description='1мм = 1 очко'
+    ),
+    TemplateElement(
+        buttons=keyboard2,  title = 'Вип на 7 дней', description = '50 очков'
+    ),
+    TemplateElement(
+        buttons=keyboard3,  title = 'Смена ника', description = '10 очков'
+    )
+)
+
+        await message.answer(f'Ваш баланс: {user['stats']['points']} очков', template=template)
+@bot.on.private_message(payload={'moder_shop': 'деньги'})
+async def moder_shop_money(message: Message):
+    db = load_db()
+    await message.answer('Напишите: //обменять [кол-во]')
+@bot.on.private_message(text='//обменять <points_to>')
+async def obmen(message: Message, points_to: str = None):
+    db = load_db()
+    user = db[str(message.from_id)]
+    points = user['stats']['points']
+    try:
+        points_to = int(points_to)
+    except:
+        await message.answer('Не могу понять сколько это..')
+    if points < points_to:
+        await message.answer('Не хватает очков.')
+    else:
+        user['stats']['points'] -= points_to
+        user['balance'] += 1000000000000 * points_to
+        save_db(db)
+        await message.answer(f'Вы потрали {points_to}(остаток: {user['stats']['points']})\nБаланс: {go_money(user['balance'])}$')
+
+@bot.on.private_message(payload={'moder_shop': 'вип'})
+async def vip_for_moders(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    if user['stats']['points'] < 50:
+        await message.answer('Вам не хватает очков.')
+    else:
+        await message.answer('-50 очков, обратись к @id819016396(Денису Бисекееву), чтобы получить свой вип.')
+        user['stats']['points'] -= 50
+        save_db(db)
+        
+@bot.on.message(payload={'moder_shop': 'ник'})
+async def nick(message: Message):
+    await message.answer('Чтобы сменить ник, напиши: //сменить ник [ник]')
+
+@bot.on.message(text='//сменить ник <nick>')
+async def change_nick(message: Message, nick: str = None):
+    db = load_db()
+    user = db[str(message.from_id)]
+    if user['stats']['points'] < 10:
+        await message.answer('Вам не хватает очков.')
+    else:
+        if len(nick) > 16:
+            await message.answer('Ник не должен превышать 16 символов. ')
+        else:
+            user['stats']['points'] -= 10
+            user['username'] = nick
+            save_db(db)
+            await message.answer('Успешно!')
 
 @bot.on.private_message(text='купить <id_s>')
 async def buy_skin(message: Message, id_s: str = None):
@@ -1467,23 +1548,23 @@ async def buy_skin(message: Message, id_s: str = None):
         await message.answer('Вы успешно надели этот скин на себя.')
         user['level'] = 1
     if id == 2:
-        if user['balance'] >= 100000:
+        if user['balance'] >= 100000000000:
             await message.answer('Вы успешно купили этот скин!')
-            user['balance'] -= 100000
+            user['balance'] -= 100000000000
             user['stats']['skins_id'].append("2")
         else:
             await message.answer('Вам не хватает денег!')
     if id == 3:
-        if user['balance'] >= 100000:
+        if user['balance'] >= 100000000000:
             await message.answer('Вы успешно купили этот скин!')
-            user['balance'] -= 100000
+            user['balance'] -= 100000000000
             user['stats']['skins_id'].append("3")
         else:
             await message.answer('Вам не хватает денег!')
     if id == 4:
-        if user['balance'] >= 500000:
+        if user['balance'] >= 500000000000:
             await message.answer('Вы успешно купили этот скин!')
-            user['balance'] -= 500000
+            user['balance'] -= 500000000000
             user['stats']['skins_id'].append("4")
         else:
             await message.answer('Вам не хватает денег!')
@@ -1494,9 +1575,9 @@ async def buy_skin(message: Message, id_s: str = None):
         else:
             await message.answer('Это доступно только пользователям с подпиской VIP!')
     if id == 7:
-        if user['balance'] >= 1000000:
+        if user['balance'] >= 10000000000000:
             await message.answer('Вы успешно купили этот скин!')
-            user['balance'] -= 1000000
+            user['balance'] -= 10000000000000
             user['stats']['skins_id'].append("7")
     if id > 7:
         await message.answer('Вещь с таким айди не найдена.')
@@ -1739,9 +1820,9 @@ async def taskaty(message: Message):
         await message.answer('Вы потащили коробку..')
         await asyncio.sleep(30)
         if user['vip'] == 'Нет':
-            rand = random.randint(1000,3000)
+            rand = random.randint(200000000000, 500000000000)
         else:
-            rand = (random.randint(1000,3000))*2
+            rand = (random.randint(200000000000, 500000000000))*2
         user['balance'] += rand
         user['stats']['gruz'] = False
         save_db(db)
@@ -1844,25 +1925,25 @@ async def clan_shop(message: Message):
 
 1️⃣ *Увеличение мест в клане* 
    ➕ +1 место для участников
-   💰 Стоимость: 600кк
+   💰 Стоимость: 60мм$
    ━━━━━━━━━━━━━━━━━━━
 
 2️⃣ *х2 кубки при победе* 🏆 
    🔥 Удвоенная награда за победы
    ⏳ Действует: 3 дня
-   💎 Стоимость: 1ккк
+   💎 Стоимость: 100мм$
    ━━━━━━━━━━━━━━━━━━━
 
 3️⃣ *Быстрые рейды* ⚡ 
    🎯 Рейдите каждые 5 минут
    ⏳ Действует: 3 дня
-   💰 Стоимость: 700кк
+   💰 Стоимость: 100мм$
    ━━━━━━━━━━━━━━━━━━━
 
 4️⃣ *Эксклюзивный герб клана* 🛡️ 
    🎨 Уникальная эмблема для вашего клана
    ⏳ Действует: НАВСЕГДА
-   💎 Стоимость: 10ккк
+   💎 Стоимость: 300мм$
    ━━━━━━━━━━━━━━━━━━━
 
 💡 Баланс клана: {go_money(db_clan[str(user['id_clan'])]['money'])}
@@ -1875,11 +1956,11 @@ async def clan_shop1(message: Message):
     clan = str(db[str(message.from_id)]['id_clan'])
     clan_id = db_clan[clan]
     if db[str(message.from_id)]['role'] in ['Лидер', 'Заместитель']:
-        if clan_id['money'] <= 600000000:
+        if clan_id['money'] <= 600000000000000:
             await message.answer('В казне клана не достаточно денег.')
         else:
             await message.answer('Места в клане увеличены на 1.')
-            clan_id['money'] -= 600000000
+            clan_id['money'] -= 600000000000000
             clan_id['max_users'] += 1
             save_db_clans(db_clan)
     else:
@@ -1891,14 +1972,14 @@ async def clan_shop2(message: Message):
     clan = str(db[str(message.from_id)]['id_clan'])
     clan_id = db_clan[clan]
     if db[str(message.from_id)]['role'] in ['Лидер', 'Заместитель']:
-        if clan_id['money'] <= 1000000000:
+        if clan_id['money'] <= 1000000000000000:
             await message.answer('В казне клана не достаточно денег.')
         else:
             if "2" not in clan_id['level']:
                 await message.answer('Буст "х2 кубки" активирован!')
                 await bot.api.messages.send(user_id=int(clan_id['leader']), message=f'Ваш клан купил буст "х2 кубки" на 3 дня.', random_id=0)
                 clan_id['level'].append("2")
-                clan_id['money'] -= 1000000000
+                clan_id['money'] -= 1000000000000000
                 save_db_clans(db_clan)
                 await asyncio.sleep(259200)
                 await bot.api.messages.send(user_id=int(clan_id['leader']), message=f'Буст "х2 кубки" закончен.', random_id=0)
@@ -1915,10 +1996,10 @@ async def clan_shop3(message: Message):
     clan = str(db[str(message.from_id)]['id_clan'])
     clan_id = db_clan[clan]
     if db[str(message.from_id)]['role'] in ['Лидер', 'Заместитель']:
-        if clan_id['money'] >= 700000000:
+        if clan_id['money'] >= 100000000000000:
             if "3" not in clan_id['level']:
                 clan_id['level'].append("3")
-                clan_id['money'] -= 700000000
+                clan_id['money'] -= 100000000000000
                 save_db_clans(db_clan)
                 await bot.api.messages.send(user_id=int(clan_id['leader']), message=f'Ваш клан купил буст "рейд каждые 5 минут" на 3 дня.', random_id=0)
                 await asyncio.sleep(259300)
@@ -1939,7 +2020,7 @@ async def clan_shop4(message: Message):
     clan_id = db_clan[clan]
     if db[str(message.from_id)]['role'] in ['Лидер', 'Заместитель']:
         if "4" not in clan_id['level']:
-            if clan_id['money'] >= 10000000000:
+            if clan_id['money'] >= 300000000000000:
 
                 await message.answer('Способность ставить герб клана активирована!\nЧтобы поставить, используй команду: "клан герб" и прикрепи фото.')
                 clan_id['level'].append("4")
@@ -2090,10 +2171,10 @@ async def handle_like_add(event: GroupTypes.LikeAdd):
     
     await bot.api.messages.send(
         user_id=user_id,
-        message=f"Спасибо за лайк! Ты заработал 1кк",
+        message=f"Спасибо за лайк! Ты заработал 1мм",
         random_id=0
     )
-    db[str(user_id)]['balance'] += 1000000
+    db[str(user_id)]['balance'] += 1000000000000
     save_db(db)
 
 @bot.on.raw_event(GroupEventType.LIKE_REMOVE, dataclass=GroupTypes.LikeRemove)
@@ -2103,10 +2184,10 @@ async def handle_like_remove(event: GroupTypes.LikeRemove):
     
     await bot.api.messages.send(
         user_id=user_id,
-        message=f"Жаль, что вы убрали лайк с поста :(\nВы потеряли 1кк$",
+        message=f"Жаль, что вы убрали лайк с поста :(\nВы потеряли 1мм$",
         random_id=0
     )
-    db[str(user_id)]['balance'] -= 1000000
+    db[str(user_id)]['balance'] -= 1000000000000
     save_db(db)
 
 ITEMS = {
@@ -2140,7 +2221,7 @@ def get_keyboard_musor(user_id=None, selected_item=None):
                 payload = {'command': 'used'}  # Заблокированная кнопка
             else:
                 color = KeyboardButtonColor.SECONDARY if price < 2000 else KeyboardButtonColor.POSITIVE
-                payload = {'command': 'musor', 'price': price, 'item': name}
+                payload = {'command': 'musor', 'price': f'price_{price}', 'name': f'name_{name}'}
             
             keyboard.add(Callback(name, payload=payload), color=color)
         keyboard.row()
@@ -2165,86 +2246,33 @@ async def musor(message: Message):
     db[str(user_id)] = user
     save_db(db)
 
-@bot.on.raw_event(Callback, dataclass=Callback)
+@bot.on.raw_event(GroupEventType.MESSAGE_EVENT, dataclass=GroupTypes.MessageEvent)
 async def collect_item(event: Callback):
     db = load_db()
-    user_id = event.from_id
-    payload = event.payload
-    
-    if not payload or payload.get('command') != 'musor':
-        return  # Игнорируем нажатия на уже использованные кнопки
-    
-    user = db.get(str(user_id), {'balance': 0, 'stats': {}})
-    price = payload.get('price')
-    item = payload.get('item')
-    
-    if not price or not item:
-        return
-    
-    # Обновляем баланс
-    user["balance"] += price
-    db[str(user_id)] = user
-    save_db(db)
-    
-    # Обновляем клавиатуру (выбранный предмет помечаем как использованный)
-    keyboard = get_keyboard_musor(user_id, selected_item=item)
-    
-    # Редактируем сообщение
-    await bot.api.messages.edit(
-        peer_id=event.object.peer_id,
-        conversation_message_id=event.object.conversation_message_id,  # Важно!
-        message=(
-            f"✅ Вы получили {price}$ за {item}!\n"
-            f"💰 Ваш баланс: {humanize.intcomma(user['balance'])}$\n"
-            "Выберите следующий предмет:"
-        ),
-        keyboard=keyboard.get_json()
-    )
-
-def get_keyboard():
-    keyboard = Keyboard(inline=True)
-    keyboard.add(
-        Callback("Нажми меня", payload={"cmd": "edit_message"}), 
-        color=KeyboardButtonColor.POSITIVE
-    )
-    return keyboard.get_json()
-
-# Обработчик команды /start
-@bot.on.message(text="/start")
-async def start_handler(message: Message):
-    await message.answer(
-        "Нажми на кнопку, чтобы изменить сообщение!",
-        keyboard=get_keyboard()
-    )
-
-# Обработчик callback-кнопки
-@bot.on.raw_event(
-    lambda event: event.object.type == "message_event" 
-    and event.object.payload.get("cmd") == "edit_message"
-)
-async def edit_message_handler(event):
-    try:
-        await bot.api.messages.edit(
-            peer_id=event.object.peer_id,
-            message="✅ Сообщение успешно изменено!",
-            conversation_message_id=event.object.conversation_message_id,
-            keyboard=None  # Убираем клавиатуру
-        )
-        await bot.api.messages.send_message_event_answer(
-            event_id=event.object.event_id,
-            user_id=event.object.user_id,
-            peer_id=event.object.peer_id,
-            event_data=json.dumps({
-                "type": "show_snackbar",
-                "text": "Сообщение изменено!"
-            })
-        )
-    except Exception as e:
-        print(f"Ошибка: {e}")
+    user_id = event.object.user_id
+    payload = event.object.payload
+    user = db[str(user_id)]
+    if 'command' in payload:
+        action = payload['command'].split('_', 1)
+        if action == 'musor':
+            price = random.randint(20000000000, 90000000000)
+            if db[str(user_id)]['vip'] != 'Нет':
+                price = price *2
+            
+            # Обновляем баланс
+            user["balance"] += price
+            save_db(db)
+            
+            # Обновляем клавиатуру (выбранный предмет помечаем как использованный)
+            keyboard = get_keyboard_musor(user_id, selected_item=None)
+            
+            # Редактируем сообщение
+            await edit_message(peer_id=event.object.peer_id, conversation_message_id=event.object.conversation_message_id, newtext=(f"✅ Вы получили {price}$!\n"
+                    f"💰 Ваш баланс: {go_money(user['balance'])}$\n"
+                    "Выберите следующий предмет:"), keyboard=keyboard.get_json())
 
 if __name__ == "__main__":    
     loop = asyncio.get_event_loop()
     loop.create_task(task_cleanup())
     print("Бот запущен...")
     bot.run_forever()
-    
