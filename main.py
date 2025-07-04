@@ -36,7 +36,7 @@ def format_time(type, seconds):
         seconds = seconds % 60
         return f"{minutes:02d} минут {seconds:02d} секунд"
     
-app = Flask(__name__)
+
 async def edit_message(peer_id, message_id, newtext=None, keyboard=None, attachment=None):
     await bot.api.messages.edit(
         peer_id=peer_id,
@@ -45,28 +45,21 @@ async def edit_message(peer_id, message_id, newtext=None, keyboard=None, attachm
         keyboard=keyboard,
         attachment=attachment
     )
-# Конфигурационные данные вашего сообщества
-CONFIRMATION_TOKEN = '93747481'  # Замените на ваш токен из настроек callback API
-SECRET_KEY = 'ttyy2211'  # Опционально, для дополнительной проверки
 
-@app.route('/callback', methods=['POST'])
-def callback():
-    data = request.get_json()
-    
-    # Проверка типа запроса
-    if not data or 'type' not in data:
-        return jsonify({'error': 'Invalid request'}), 400
-    
-    # Обработка подтверждения сервера
-    if data['type'] == 'confirmation':
-        return CONFIRMATION_TOKEN
-    
-    # Здесь можно добавить обработку других типов событий
-    # Например: message_new, wall_post_new и т.д.
-    
-    # Ответ для всех неподтвержденных событий
-    asyncio.run(bot.process_event(data))
-    return jsonify({'response': 'ok'})
+
+from flask import Flask, request
+from vkbottle import Bot
+
+app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    event = request.json
+    asyncio.run(bot.router.route(event))
+    return "ok"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
     
 
 
