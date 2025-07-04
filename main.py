@@ -52,7 +52,7 @@ from vkbottle import Bot
 
 app = Flask(__name__)
 
-CONFIRMATION_CODE = " e4a9143e"  # Тот самый код из настроек Callback API
+CONFIRMATION_CODE = "e4a9143e"  # Тот самый код из настроек Callback API
 
 @app.route('/callback', methods=['POST', 'GET'])
 def callback():
