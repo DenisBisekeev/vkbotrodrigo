@@ -1,7 +1,0 @@
-vkbottle
-pillow
-requests
-humanize
-yoomoney
-subprocess
-flask
