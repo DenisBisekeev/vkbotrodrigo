@@ -56,7 +56,7 @@ app = Flask(__name__)
 def webhook():
     event = request.json
     asyncio.run(bot.router.route(event))
-    return "ok"
+    return "e4a9143e"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
