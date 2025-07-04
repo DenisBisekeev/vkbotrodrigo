@@ -52,14 +52,18 @@ from vkbottle import Bot
 
 app = Flask(__name__)
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    event = request.json
-    asyncio.run(bot.router.route(event))
-    return "e4a9143e"
+CONFIRMATION_CODE = " e4a9143e"  # Тот самый код из настроек Callback API
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+@app.route('/callback', methods=['POST', 'GET'])
+def callback():
+    if request.method == 'GET':
+        # Подтверждение сервера
+        return CONFIRMATION_CODE
+    else:
+        # Обработка событий от ВК
+        data = request.json
+        print(data)  # Для отладки
+        return jsonify({"ok": True})
     
 
 
