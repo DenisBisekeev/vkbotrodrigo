@@ -6,7 +6,7 @@ from token_1 import token
 import os
 from vkbottle import Bot, Callback
 import os
-import json
+import json 
 import requests
 from io import BytesIO
 from PIL import Image
@@ -25,7 +25,17 @@ from vkbottle.api import API
 from vkbottle import Bot, PhotoMarketUploader, template_gen, TemplateElement
 import asyncio
 from flask import Flask, request, jsonify
-
+def format_time(type, seconds):
+    if type == 'час-минута-секунда':
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        return f"{hours:02d} часов {minutes:02d} минут {seconds:02d} секунд"
+    if type == 'минута-секунда':
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        return f"{minutes:02d} минут {seconds:02d} секунд"
+    
 app = Flask(__name__)
 async def edit_message(peer_id, message_id, newtext=None, keyboard=None, attachment=None):
     await bot.api.messages.edit(
@@ -65,8 +75,12 @@ primary = KeyboardButtonColor.PRIMARY
 positive = KeyboardButtonColor.POSITIVE
 negative = KeyboardButtonColor.NEGATIVE
 secondary = KeyboardButtonColor.SECONDARY
+
+
 bot = Bot(token=token)
 api = API(token=token)
+
+
 photo_uploader = PhotoMessageUploader(bot.api)
 def kazino_numbers(number):
     if number == 0:
@@ -207,7 +221,7 @@ def get_tiktok_top(limit: int = 10) -> List[Tuple[str, Dict]]:
     
     # Получаем всех пользователей и фильтруем тех, у кого есть баланс
     users = [(user_id, user_data) for user_id, user_data in db.items() 
-             if isinstance(user_data, dict) and 'tiktok_subs' in user_data['tiktok_stats']]
+            if isinstance(user_data, dict) and 'tiktok_subs' in user_data['tiktok_stats']]
     
     # Сортируем по балансу (по убыванию)
     users.sort(key=lambda x: x[1]['tiktok_stats']['tiktok_subs'], reverse=True)
@@ -252,42 +266,60 @@ def get_user_rank(user_id: int) -> int:
     return '999+'
 
 bot.labeler.vbml_ignore_case = True
-def parse_amount(text: str, user_id: int) -> int:
-    text = text.lower().replace(" ", "")
-    db = load_db()
-    user = db.get(str(user_id), {})
+def parse_amount(money: str, user_id: str = None) -> int:
+    if not money or money.lower() == 'вб':
+        if not user_id:
+            return 0
+        db = load_db()
+        user = db.get(str(user_id))
+        return user['balance'] if user else 0
+
+    money = money.lower().replace(',', '.').replace(' ', '')
+
+    # Разделяем число и множитель
+    num_part = ''
+    mult_part = ''
     
-    # Сначала проверяем числовые значения без букв
-    if text.isdigit():
-        return int(text)
-    
-    # Затем обработка сокращений
-    multipliers = {
-        'м': 1000000,
-        'мк': 1000000000,
-        'ккк': 1000000000,
-        'мм': 1000000000000,
-        'кккк': 1000000000000,
-        'ммк': 1000000000000000,
+    for char in money:
+        if char.isdigit() or char in {'.', '-'}:
+            num_part += char
+        else:
+            mult_part += char.lower()
+
+    if not num_part:
+        return 0
+
+    try:
+        number = float(num_part)
+    except ValueError:
+        return 0
+
+    # Определяем множитель
+    multiplier = 1
+    if mult_part:
+        multipliers = {
+            'к': 10**3,
+            'кк': 10**6,
+            'м': 10**6,
+            'мк': 10**9,
+            'мм': 10**12,
+            'ммк': 10**15,
+            'ккк': 10**9,
+            'кккк': 10**12,
+            'ккккк': 10**15,
+            'т': 10**12,
+            'трлн': 10**12,
+            'а': 10**18,
+            'аа': 10**36
+        }
         
-        
-        'вб': user.get('balance', 0),
-        'все': user.get('balance', 0),
-        'all': user.get('balance', 0)
-    }
-    
-    for suffix, multiplier in multipliers.items():
-        if suffix in text:
-            num_part = text.replace(suffix, "")
-            try:
-                if suffix == 'вб':  # "вб" без числа - весь баланс
-                    return int(multiplier)
-                return int(float(num_part) * multiplier)
-            except (ValueError, TypeError):
-                return 0
-    
-    # Если ничего не распознано
-    return 0
+        # Проверяем все возможные комбинации
+        for k in sorted(multipliers.keys(), key=len, reverse=True):
+            if mult_part.startswith(k):
+                multiplier = multipliers[k]
+                break
+
+    return int(number * multiplier)
 # Обработчик сообщений
 @bot.on.private_message(text=["Регистрация", "регистрация", "начать"])
 async def register_handler(message: Message):
@@ -304,8 +336,9 @@ async def register_handler(message: Message):
     db[str(user_id)] = {
         'username': f'{username}',
         'balance': 100000000000,
+        "bts": 0,
         'level': 1,
-        'exp': 0,
+        "car": "Нет",
         'clan': 'Нет',
         'id_clan': 0,
         'inventory': [],
@@ -330,7 +363,15 @@ async def register_handler(message: Message):
             "last_doors": 0,
             "last_vzlom": 0,
             "last_steal": 0,
-            "skins_id": []
+            "last_pensia": 0,
+            "skins_id": [],
+            "audio": None,
+            'points': 0,
+            "замес": [],
+            "кости": [],
+            "taksi": False,
+            "fish": False,
+            "gruz": False,
             },
         'tiktok_stats': {
             'tiktok_kd': 3600,
@@ -339,14 +380,21 @@ async def register_handler(message: Message):
             'tiktok_date': None,
             "last_tiktok": 0,
             "tiktok_views": 0
-        }
+        },
+        "farm": {
+                "income": 0,
+                "level": 0,
+                "last_income": 0,
+                "next_level": 0,
+                "bank": 0
+            }
             
             }
             
     
     save_db(db)
     await message.answer(f"✅ Регистрация прошла успешно, {username}! \nТакже ты получил бонус в виде 100мк!💸")
-    menu()
+    await menu(message)
 uploader = PhotoMessageUploader(api)
 @bot.on.chat_message(text='регистрация')
 async def no_reg_sorry(message: Message):
@@ -507,7 +555,7 @@ async def kazino(message: Message, bet_type: str = None, money: str = None):
         if win_num == int(bet_type):
             multiplier = 14
 
-    else:
+    if bet_type is None:
         await message.answer(
             "❌ Неправильный тип ставки! Доступные варианты:\n\n"
             "• Красное/Чёрное (х2)\n"
@@ -515,7 +563,7 @@ async def kazino(message: Message, bet_type: str = None, money: str = None):
             "• 1-12/12-24/24-36 (х3)\n"
             "• 0 (х36)\n"
             "• Конкретное число (1-36, х14)\n\n"
-            "🎰 Пример: «казино чёт 100к» или «казино 12-24 все»"
+            "🎰 Пример: «казино чёт 100к» или  «рул 12-24 вб»"
         )
         return
 
@@ -524,9 +572,11 @@ async def kazino(message: Message, bet_type: str = None, money: str = None):
         win_amount = amount * multiplier
         user['balance'] += win_amount
         result = f"\n🥳 Вы выиграли {go_money(win_amount)}$!(x{multiplier})"
+        user['stats']['casino_wins'] += 1
     else:
         user['balance'] -= amount
         result = f"\n😭 Вы проиграли {go_money(amount)}!$ (x0)"
+        user['stats']['casino_losses'] += 1
 
     result += f"\n💸 Баланс: {go_money(user['balance'])}"
     save_db(db)
@@ -583,7 +633,8 @@ async def create_video(message: Message):
         now = int(time.time())
         if now - user['tiktok_stats']["last_tiktok"] < 3600:
             wait_time = 3600 - (now - user['tiktok_stats']['last_tiktok'])
-            await message.answer(f"⏳ Вы можете снять следующее видео через {wait_time//60} минут!")
+            formatted = format_time('час-минута-секунда', wait_time)
+            await message.answer(f"⏳ Вы можете снять следующее видео через {formatted}!")
             return
     
         else:
@@ -682,7 +733,8 @@ async def create_clan(message: Message, name: str = None):
                         'users_ids': [f"{message.from_id}"],
                         'max_users': 50,
                         'photo': None,
-                        'level': []
+                        'level': [],
+                        'photo': None
                     }
                     user['balance'] = user['balance'] - 10000000000000
                     user['id_clan'] = f'{id}'
@@ -691,7 +743,7 @@ async def create_clan(message: Message, name: str = None):
                     save_db_clans(db_clan)
 
 @bot.on.message(text=['клан приглос', 'клан приглос <mention>'])
-async def priglos(message: Message, mention: str = None):
+async def priglos(message: Message, mention: str):
     if message.reply_message:
         touser = message.reply_message.from_id
     else:
@@ -703,84 +755,43 @@ async def priglos(message: Message, mention: str = None):
     if user['clan'] != 'Нет':
         if user['role'] in ['Лидер', 'Заместитель']:
             user2 = db[str(touser)]
-            if user2['invite_status'] == False:
-                if mention != None:
-                    
-                    if user2['clan'] != 'Нет':
-                        await message.answer('❌ Пользователь в вашем клане или в другом клане!')
-                    if user2['clan'] == 'Нет':
-                        id_clan = user['id_clan']
-                        if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
-                            await message.answer('❌ В вашем клане не хватает мест!')
-                        if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
-                            await message.answer('✅ Приглашение пользователю отправлено!')
-                            keyboard = (Keyboard(inline=True).add(Text('✅', payload={'clan': 'invite'}), color=KeyboardButtonColor.POSITIVE)
-                                        .add(Text('❌', payload={'clan': 'disinvite'}), color=negative)
-                                        ).get_json()
-                            await bot.api.messages.send(user_id=touser, message=f'Вас пригласили в клан "{user['clan']}"', keyboard=keyboard, random_id=0)
-                            user2['id_clan_to'] = user['id_clan']
-                            user2['invite_status'] = True
-                            save_db(db)
-                            save_db_clans(db_clan)
-                if message.reply_message:
-                    user2 = db[str(message.reply_message.from_id)]
-                    if user2['clan'] != 'Нет':
-                        await message.answer('❌ Пользователь в вашем клане или в другом клане!')
-                    if user2['clan'] == 'Нет':
-                        id_clan = user['id_clan']
-                        if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
-                            await message.answer('❌ В вашем клане не хватает мест!')
-                        if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
-                            await message.answer('✅ Приглашение пользователю отправлено!')
-                            keyboard = (Keyboard(inline=True).add(Text('✅', payload={'clan': 'invite'}), color=KeyboardButtonColor.POSITIVE).add(Text('❌', payload={'clan': 'disinvite'}), color=KeyboardButtonColor.NEGATIVE)).get_json()
-                            await bot.api.messages.send(user_id=message.reply_message.from_id, message=f'Вас пригласили в клан "{user['clan']}"', keyboard=keyboard, random_id=0)
-                            user2['id_clan_to'] = user['id_clan']
-                            user2['invite_status'] = True
-                            save_db(db)
-                            save_db_clans(db_clan)
-            else:
-                await message.answer('❌ Пользователь уже приглашён в клан. Скажите ему, чтобы он отклонил предложение.')
+            
+            if mention != None:    
+                if user2['clan'] != 'Нет':
+                    await message.answer('❌ Пользователь в вашем клане или в другом клане!')
+                if user2['clan'] == 'Нет':
+                    id_clan = user['id_clan']
+                    if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
+                        await message.answer('❌ В вашем клане не хватает мест!')
+                    if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
+                        await message.answer('✅ Приглашение пользователю отправлено!')
+                        keyboard = (Keyboard(inline=True).add(Callback('✅', payload={'clan': id_clan}), color=KeyboardButtonColor.POSITIVE)
+                                    .add(Callback('❌', payload={'clan_no': id_clan}), color=negative)
+                                    ).get_json()
+                        await bot.api.messages.send(user_id=touser, message=f'Вас пригласили в клан "{user['clan']}"', keyboard=keyboard, random_id=0)
+                        save_db(db)
+                        save_db_clans(db_clan)
+            if message.reply_message:
+                user2 = db[str(message.reply_message.from_id)]
+                if user2['clan'] != 'Нет':
+                    await message.answer('❌ Пользователь в вашем клане или в другом клане!')
+                if user2['clan'] == 'Нет':
+                    id_clan = user['id_clan']
+                    if db_clan[id_clan]['users'] == db_clan[id_clan]['max_users']:
+                        await message.answer('❌ В вашем клане не хватает мест!')
+                    if db_clan[id_clan]['users'] < db_clan[id_clan]['max_users']:
+                        await message.answer('✅ Приглашение пользователю отправлено!')
+                        keyboard = (Keyboard(inline=True).add(Callback('✅', payload={'clan': id_clan}), color=KeyboardButtonColor.POSITIVE).add(Callback('❌', payload={'clan_no': 'disinvite'}), color=KeyboardButtonColor.NEGATIVE)).get_json()
+                        await bot.api.messages.send(user_id=message.reply_message.from_id, message=f'Вас пригласили в клан "{user['clan']}"', keyboard=keyboard, random_id=0)
+                        save_db(db)
+                        save_db_clans(db_clan)
+           
         else:
             await message.answer('❌ Вы не являетесь лидером или заместителем клана!')
     else:
         await message.answer('❌ У вас нет клана!')
         
 
-@bot.on.message(payload={'clan': 'invite'})
-@bot.on.message(text='согласиться')
-async def invite(message: Message):
-    db = load_db()
-    user = db[str(message.from_id)]
-    db_clan = load_db_clans()
-    id_to = str(user['id_clan_to'])
-
-    if user['invite_status'] == False:
-        await message.answer('❌ В данный момент вас не приглашают в клан!')
-    else:
-        await message.answer(f'✅ Вы успешно вступили в клан "{db_clan[id_to]['clan']}".')
-        db_clan[id_to]['users'] += 1
-        db_clan[id_to]['users_ids'].append(str(message.from_id))
-        user['clan'] = str(db_clan[id_to]['clan'])
-        user['invite_status'] = False
-        user['role'] = 'Новичок'
-        user['id_clan'] = id_to
-        save_db(db)
-        save_db_clans(db_clan)
-        await bot.api.messages.send(user_id=int(db_clan[id_to]['leader']), message=f'@id{message.from_id}({user['username']}) вступил в ваш клан.', random_id=0)
-
-@bot.on.message(payload={'clan': 'disinvite'})
-@bot.on.message(text='отказаться')
-async def no_invite(message: Message):
-    db = load_db()
-    user = db[str(message.from_id)]
-    db_clan = load_db_clans()
-    id_to = str(user['id_clan_to'])
-    if user['invite_status'] == False:
-        await message.answer('❌ В данный момент вас не приглашают в клан!')
-    else:
-        await message.answer(f'✅ Вы успешно отклонили заявку в клан')
-        user['invite_status'] = False
-        await bot.api.messages.send(user_id=int(db_clan[id_to]['leader']), message=f'@id{message.from_id}({user['username']}) отклонил заявку в клан.', random_id=0)
 
 
 @bot.on.message(text='клан')
@@ -859,7 +870,8 @@ async def reyd(message: Message):
             num = 600
         if now - db_clan[id_clan]["last_reyd"] < num:
             wait_time = num - (now - db_clan[id_clan]['last_reyd'])
-            await message.answer(f"⏳ Вы можете рейдить через {wait_time//60} минут!")
+            formatted = format_time('час-минута-секунда', wait_time)
+            await message.answer(f"⏳ Вы можете рейдить через {formatted}!")
             return
         else:
             rand = random.choice(["выигрыш", "проигрыш", "ничья", "выигрыш", "проигрыш"])
@@ -970,8 +982,11 @@ async def help_clans(message: Message):
                          '2. Клан рейд - рейд других кланов для получения кубков.\n'
                          '3. Клан выйти - выход из клана.\n'
                          '4. Клан создать [текст] - создать собственный клан (стоит 500.000)\n'
-                         '5. Клан приглос [@username] - пригласить пользователя к клан (доступно только Лидеру и Заместителю.)\n'
-                         '6. Клан кик [@username] - кикнуть пользователя из клана.'
+                         '5. Клан приглос [@username] - пригласить пользователя в клан (доступно только Лидеру и Заместителю.)\n'
+                         '6. Клан кик [@username] - кикнуть пользователя из клана.\n'
+                         '5. Клан вывод [деньги] - вывод денег из казны клана.\n',
+                         '6. Клан герб - устанавливает герб клана.\n'
+                         '7. Клан магаз - магазин кланов.'
                          )
 
 @bot.on.message(text=['писька', 'писюн'])
@@ -982,7 +997,8 @@ async def piska(message: Message):
     now = int(time.time())
     if now - int(user['stats']['last_piska']) < 1800:
         wait_time = 1800 - (now - int(user['stats']['last_piska']))
-        await message.answer(f"⏳ Вы можете растить письку через {wait_time//60} минут!")
+        formatted = format_time('час-минута-секунда', wait_time)
+        await message.answer(f"⏳ Вы можете растить письку через {formatted}!")
     else:
         if user['vip'] != 'Нет':
             rand = (random.randint(1,6))*2
@@ -1002,40 +1018,20 @@ async def seyf(message: Message):
     now = int(time.time())
     if now - user['stats']['last_seyf'] < 3600:
         wait_time = 3600 - (now - user['stats']['last_seyf'])
-        await message.answer(f"⏳ Вы можете взламывать сейф через {wait_time//60} минут!")
+        formatted = format_time('час-минута-секунда', wait_time)
+        await message.answer(f"⏳ Вы можете взламывать сейф через {formatted}!")
     else:
         rand = random.randint(1,3)
         if rand == 1:
-            keyboard = (Keyboard(inline=True).add(Text('2341', payload={'seyf': '1'})).add(Text('5901', payload={'seyf': '1'}))).get_json()
+            keyboard = (Keyboard(inline=True).add(Callback('2341', payload={'seyf': '1'})).add(Callback('5901', payload={'seyf': '1'}))).get_json()
             await message.answer('🔑 Отгадайте код от сейфа.', keyboard=keyboard)
         if rand == 2:
-            keyboard = (Keyboard(inline=True).add(Text('5657', payload={'seyf': '1'})).add(Text('8189', payload={'seyf': '1'}))).get_json()
+            keyboard = (Keyboard(inline=True).add(Callback('5657', payload={'seyf': '1'})).add(Callback('8189', payload={'seyf': '1'}))).get_json()
             await message.answer('🔑 Отгадайте код от сейфа.', keyboard=keyboard)
         if rand == 3:
-            keyboard = (Keyboard(inline=True).add(Text('6273', payload={'seyf': '1'})).add(Text('0020', payload={'seyf': '1'}))).get_json()
+            keyboard = (Keyboard(inline=True).add(Callback('6273', payload={'seyf': '1'})).add(Callback('0020', payload={'seyf': '1'}))).get_json()
             await message.answer('🔑 Отгадайте код от сейфа.', keyboard=keyboard)
-@bot.on.message(payload={'seyf': '1'})
-async def choose_seyf(message: Message):
-    db = load_db()
-    user = db[str(message.from_id)]
-    now = int(time.time())
-    if now - user['stats']['last_seyf'] < 3600:
-        wait_time = 3600 - (now - user['stats']['last_seyf'])
-        await message.answer(f"⏳ Вы можете взламывать сейф через {wait_time//60} минут!")
-    else:
-        rand = random.randint(1,2)
-        if rand == 1:
-            rand2 = random.randint(4000,70000)
-            if user['vip'] != 'Нет':
-                rand2 = rand2 * 2
-            user['balance'] += rand2
-            await message.answer(f'🥳 Вы отгадали код от сейфа и получили {humanize.intcomma(rand2)}$')
-        if rand == 2:
-            await message.answer('😭 Отгадать код от сейфа не получилось.')
-            user['stats']['last_seyf'] = now
-        save_db(db)
             
-
 @bot.on.message(text='двери')
 async def doors(message: Message):
     db = load_db()
@@ -1043,36 +1039,14 @@ async def doors(message: Message):
     now = int(time.time())
     if now - user['stats']['last_doors'] < 3600:
         wait_time = 3600 - (now - user['stats']['last_doors'])
-        await message.answer(f"⏳ Вы можете угадывать дверь через {wait_time//60} минут!")
+        formatted = format_time('час-минута-секунда', wait_time)
+        await message.answer(f"⏳ Вы можете угадывать дверь через {formatted}!")
     else:
         keyboard = (Keyboard(inline=True)
-                    .add(Text('🚪', payload={'doors': '1'}))
-                    .add(Text('🚪', payload={'doors': '1'}))
-                    .add(Text('🚪', payload={'doors': '1'}))).get_json()
+                    .add(Callback('🚪', payload={'doors': '1'}))
+                    .add(Callback('🚪', payload={'doors': '1'}))
+                    .add(Callback('🚪', payload={'doors': '1'}))).get_json()
         await message.answer('🚪 Попробуйте угадать дверь, за ней спрятан приз.', keyboard=keyboard)
-@bot.on.message(payload={'doors': '1'})
-async def doors_choose(message: Message):
-    db = load_db()
-    user = db[str(message.from_id)]
-    now = int(time.time())
-    if now - user['stats']['last_doors'] < 3600:
-        wait_time = 3600 - (now - user['stats']['last_doors'])
-        await message.answer(f"⏳ Вы можете угадывать дверь через {wait_time//60} минут!")
-    else:
-        rand = random.randint(1,3)
-        if rand == 1:
-            rand2 = random.randint(5000,90000)
-            await message.answer(f'🥳 Вы отгадали дверь и нашли за ней {humanize.intcomma(rand2)}$')
-            if user['vip'] == 'Нет':
-                user['balance'] += rand2
-            else:
-                user['balance'] += rand2 * 2
-        if rand == 2:
-            await message.answer('😱😱😱 Вы открыли дверь и нашли за ней 2.000.000! ОМАГАД! СУПЕР ВЫИГРЫШ! \n🫠 Ладно, я пошутил)')
-        if rand == 3:
-            await message.answer('🐶🐶 Вы открыли дверь, а там миленькие собачки). Вы на них засмотрелись и у вас стащили деньги.')
-        user['stats']['last_doors'] = now
-        save_db(db)
 
 @bot.on.message(text='взлом')
 async def vzlom(message: Message):
@@ -1081,13 +1055,14 @@ async def vzlom(message: Message):
     now = int(time.time())
     if now - user['stats']['last_vzlom'] < 3600:
         wait_time = 3600 - (now - user['stats']['last_vzlom'])
-        await message.answer(f'⏳ Вы можете взламывать через {wait_time//60} минут!')
+        formatted = format_time('минута-секунда', wait_time)
+        await message.answer(f'⏳ Вы можете взламывать через {formatted}!')
     else:
         rand = random.randint(1,2)
         if rand == 1:
             await message.answer(f'🚨 Пока ты взламывал {'Интернет магазин' or 'Сервер майнкрафта' or 'Сына маминой подруги'} тебя спалили!')
         else:
-            rand2 = random.randint(4000,85000)
+            rand2 = random.randint(3500000000000, 4000000000000)
             if user['vip'] != 'Нет':
                 rand2 = rand2 * 2
 
@@ -1105,8 +1080,9 @@ async def steal_piska(message: Message, mention: str = None):
     user = db[str(message.from_id)]
     now = int(time.time())
     if now - user['stats']['last_steal'] < 3600:
-        wait_time = 3600 - (now - user['stats']['last_steal'])
-        await message.answer(f'⏳ Вы можете красть письку через {wait_time//60} минут!')
+        wait_time = 7200 - (now - user['stats']['last_steal'])
+        formatted = format_time('час-минута-секунда', wait_time)
+        await message.answer(f'⏳ Вы можете красть письку через {formatted}!')
     else:
         if mention != None:
             try:
@@ -1129,7 +1105,7 @@ async def steal_piska(message: Message, mention: str = None):
                     await bot.api.messages.send(user_id=user_to.id, message=f'🙄 @id{message.from_id}({user['username']}) украл у вас {rand} см письки!', random_id=0)
                 user['stats']['last_steal'] = now
                 save_db(db)
-        else:
+        elif message.reply_message:
             try:
                 user_to = message.reply_message.from_id
             except:
@@ -1526,6 +1502,7 @@ async def nick(message: Message):
 async def change_nick(message: Message, nick: str = None):
     db = load_db()
     user = db[str(message.from_id)]
+    dbc = load_db_clans()
     if user['stats']['points'] < 10:
         await message.answer('Вам не хватает очков.')
     else:
@@ -1533,7 +1510,12 @@ async def change_nick(message: Message, nick: str = None):
             await message.answer('Ник не должен превышать 16 символов. ')
         else:
             user['stats']['points'] -= 10
-            user['username'] = nick
+            if user['role'] != 'Лидер':
+                user['username'] = nick
+            else:
+                id_clan = user['id_clan']
+                dbc[id_clan]['nickname'] = nick
+            save_db_clans(dbc)
             save_db(db)
             await message.answer('Успешно!')
 
@@ -1579,6 +1561,8 @@ async def buy_skin(message: Message, id_s: str = None):
             await message.answer('Вы успешно купили этот скин!')
             user['balance'] -= 10000000000000
             user['stats']['skins_id'].append("7")
+        else:
+            await message.answer('Вам не хватает денег!')
     if id > 7:
         await message.answer('Вещь с таким айди не найдена.')
     save_db(db)
@@ -2190,89 +2174,743 @@ async def handle_like_remove(event: GroupTypes.LikeRemove):
     db[str(user_id)]['balance'] -= 1000000000000
     save_db(db)
 
-ITEMS = {
-    '🗞️': 500,
-    '📦': 1000,
-    '🪵': 2000,
-    '💎': 5000
-}
 
-# Глобальный словарь для хранения текущих клавиатур (чтобы кнопки не "крутились")
-user_keyboards = {}
-
-def get_keyboard_musor(user_id=None, selected_item=None):
-    keyboard = Keyboard(inline=True)
-    
-    # Если клавиатура уже была сгенерирована для пользователя, берем её
-    if user_id in user_keyboards:
-        items = user_keyboards[user_id]
-    else:
-        # Иначе создаем новую и сохраняем
-        items = random.sample(list(ITEMS.items()), 4)
-        user_keyboards[user_id] = items
-    
-    # Создаем сетку 2x2
-    for i in range(0, 4, 2):
-        row_items = items[i:i+2]
-        for name, price in row_items:
-            # Если предмет выбран, делаем кнопку серой (неактивной)
-            if selected_item == name:
-                color = KeyboardButtonColor.NEGATIVE
-                payload = {'command': 'used'}  # Заблокированная кнопка
-            else:
-                color = KeyboardButtonColor.SECONDARY if price < 2000 else KeyboardButtonColor.POSITIVE
-                payload = {'command': 'musor', 'price': f'price_{price}', 'name': f'name_{name}'}
-            
-            keyboard.add(Callback(name, payload=payload), color=color)
-        keyboard.row()
-    
-    return keyboard
-
-@bot.on.message(text='мусорщик')
-async def musor(message: Message):
+@bot.on.message(text='//givepoints <mention> <points>')
+async def give_points(message: Message, mention: str = None, points: str = None):
     db = load_db()
-    user_id = message.from_id
-    user = db.get(str(user_id), {'balance': 0, 'stats': {}})
+    if db[str(message.from_id)]['status'] in ['owner', 'zam', 'gl.moder']:
+        try:
+            user_id = await resolve_resources(mention)
+            user_id = user_id.id
+        except Exception as e:
+            await message.answer('Ошибка: ' + e)
+        if db[str(user_id)]['status'] in ['moder', 'zam', 'owner', 'gl.moder']:
+            try:
+                points = int(points)
+            except Exception as e:
+                await message.answer('Ошибка: ' + e)
+            db[str(user_id)]['stats']['points'] += points
+            await message.answer('Готово')
+            save_db(db)
+
+@bot.on.message(text='кости <mon>')
+async def kosti(message: Message, mon: str = None):
+    db = load_db()
+    try:
+        target_id = message.reply_message.from_id
+        target = db[str(target_id)]
+        user = db[str(message.from_id)]
+    except:
+        return await message.answer('Ответьте на сообщение юзера, с которым хотите играть.')
     
-    # Генерируем новую клавиатуру и сохраняем
-    keyboard = get_keyboard_musor(user_id)
+    try:
+        money = parse_amount(mon, message.from_id)
+    except:
+        return await message.answer('Введите корректную ставку')
     
-    msg = await message.answer(
-        f"💰 Ваш баланс: {humanize.intcomma(user['balance'])}$\nВыберите предмет:",
-        keyboard=keyboard.get_json()
+    if user['balance'] < money:
+        return await message.answer('Вам не хватает денег!')
+    
+    if target['balance'] < money:
+        return await message.answer('Сопернику не хватает денег!')
+    
+    keyboard = (Keyboard(inline=True)
+               .add(Callback(f'Согласиться'))
+               ).get_json()
+    
+    await message.answer(
+        f"@id{target_id}({target['username']}), @id{message.from_id}({user['username']}) "
+        f"предлагает вам сыграть в кости на {go_money(money)}$",
+        keyboard=keyboard
+    )
+from PIL import Image, ImageDraw, ImageFont
+import os
+
+def generate_meme(user1: str, user2: str, result: str):
+    # Загружаем шаблон изображения
+    template = Image.open("template.jpg")  # Ваш шаблон для мема
+    
+    # Настройки шрифта
+    try:
+        font = ImageFont.truetype("arial.ttf", 40)
+    except:
+        font = ImageFont.load_default()
+    
+    draw = ImageDraw.Draw(template)
+    
+    # Рисуем текст на изображении
+    draw.text((50, 50), f"{user1} vs {user2}", font=font, fill="black")
+    draw.text((150, 300), f"Результат: {result}", font=font, fill="red")
+    
+    # Сохраняем результат
+    output_path = "result.jpg"
+    template.save(output_path)
+    return output_path
+@bot.on.message(text='замес <sm>')
+async def zames(message: Message, sm: str = None):
+    db = load_db()
+    try:
+        target_id = message.reply_message.from_id
+        target = db[str(target_id)]
+        user = db[str(message.from_id)]
+    except KeyError:
+        return await message.answer('Ответьте на сообщение пользователя, с которым хотите сделать замес.')
+    
+    try:
+        sm = int(sm)
+    except ValueError:
+        return await message.answer('Укажите корректное количество см (число)')
+    
+    if sm > user['piska']:
+        return await message.answer('Недостаточно письки для замеса.')
+    
+    if sm > target['piska']:
+        return await message.answer('У соперника недостаточно письки!')
+    
+    db['игра']['замесы']['ID'] += 1
+    save_db(db)
+    ID = db['игра']['замесы']['ID']
+    keyboard = (
+        Keyboard(inline=True)
+        .add(Callback("Согласиться", payload={
+            "zames": f"zames_{ID}"
+        }), color=KeyboardButtonColor.POSITIVE)
+        .get_json()
     )
     
-    user['stats']["message_id"] = msg.message_id
-    db[str(user_id)] = user
+    db['игра']['замесы'][str(ID)] = {
+        "1": message.from_id,
+        "2": target_id,
+        "sm": sm,
+        "time": time.time()
+    }
+    user['stats']['замес'].append(str(ID))
+    target['stats']['замес'].append(str(ID))
     save_db(db)
 
-@bot.on.raw_event(GroupEventType.MESSAGE_EVENT, dataclass=GroupTypes.MessageEvent)
-async def collect_item(event: Callback):
-    db = load_db()
-    user_id = event.object.user_id
-    payload = event.object.payload
-    user = db[str(user_id)]
-    if 'command' in payload:
-        action = payload['command'].split('_', 1)
-        if action == 'musor':
-            price = random.randint(20000000000, 90000000000)
-            if db[str(user_id)]['vip'] != 'Нет':
-                price = price *2
-            
-            # Обновляем баланс
-            user["balance"] += price
-            save_db(db)
-            
-            # Обновляем клавиатуру (выбранный предмет помечаем как использованный)
-            keyboard = get_keyboard_musor(user_id, selected_item=None)
-            
-            # Редактируем сообщение
-            await edit_message(peer_id=event.object.peer_id, conversation_message_id=event.object.conversation_message_id, newtext=(f"✅ Вы получили {price}$!\n"
-                    f"💰 Ваш баланс: {go_money(user['balance'])}$\n"
-                    "Выберите следующий предмет:"), keyboard=keyboard.get_json())
+    await message.answer(
+        f"@id{target_id}({target['username']}), @id{message.from_id}({user['username']}) "
+        f"предлагает вам замес на {sm} см письки.",
+        keyboard=keyboard
+    )
 
+
+# Элементы и их веса (чем больше вес - тем чаще появляется)
+ITEMS: Dict[str, int] = {
+    "🧻": 1000000000,
+    "🛢️": 2000000000,
+    "⚽": 3000000000,
+    "🩳": 5000000000,
+    "🧨": 8000000000,
+    "📃": 10000000000,
+    "💳": 20000000000,
+    "💰": 25000000000,
+    "💎": 100000000000
+}
+    
+ROWS = 3          # Количество рядов
+BUTTONS_PER_ROW = 3  # Кнопок в ряду
+
+# Генератор клавиатуры
+def generate_trash_keyboard() -> str:
+    keyboard = Keyboard(inline=True)
+    
+    # Создаем взвешенный список (чем дешевле предмет - тем чаще он встречается)
+    weighted_items = []
+    for item, price in ITEMS.items():
+        # Чем выше цена, тем меньше шанс выпадения (обратная зависимость)
+        weight = max(1, 1000 // price)  # Формулу можно настроить
+        weighted_items.extend([(item, price)] * weight)
+    
+    # 3 ряда по 3 кнопки (9 предметов)
+    for _ in range(3):
+        row_buttons = []
+        for _ in range(3):
+            item, price = random.choice(weighted_items)
+            row_buttons.append(
+                Callback(f"{item}", payload={"item": item, "price": price})
+            )
+        
+        # Добавляем ряд кнопок
+        for btn in row_buttons:
+            # Цвет кнопки зависит от цены (дешевые - серые, дорогие - зеленые/золотые)
+            color = (
+                KeyboardButtonColor.PRIMARY if btn.payload["price"] > 500
+                else KeyboardButtonColor.POSITIVE if btn.payload["price"] > 100
+                else KeyboardButtonColor.SECONDARY
+            )
+            keyboard.add(btn, color=color)
+        keyboard.row()  # Новый ряд
+    
+    # Кнопка "Закрыть"
+    keyboard.add(
+        Text("❌ Закрыть", payload={"command": 'menu'}),
+        color=KeyboardButtonColor.NEGATIVE
+    )
+    
+    return keyboard.get_json()
+
+# Пример обработчика команды
+@bot.on.private_message(text="мусорщик")
+async def trash_handler(message: Message):
+    keyboard = generate_trash_keyboard()
+    await message.answer("🎰 Мусорщик готов к работе!\nСобирай ценные вещи.", keyboard=keyboard)
+
+@bot.on.private_message(text='такси')
+async def taksi_handler(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    keyboard = (Keyboard(inline=True)
+    .add(Callback('Начать рейс', payload={'taksi': 'start'}), color=positive)
+    ).get_json()
+    await message.answer(f'🚕 Вы попали в меню таксиста\n💰 Баланс: {go_money(user['balance'])}$', keyboard=keyboard)
+def is_eligible(user_id):
+    db = load_db()
+    user_data = db.get(str(user_id))
+    
+    if not user_data:
+        return False
+    
+    first_seen = datetime.strptime(user_data["registered_at"], "%Y-%m-%d")
+    return (datetime.now() - first_seen) >= timedelta(days=30)
+
+# Команда /пенсия
+@bot.on.message(text="пенсия")
+async def pension(message: Message):
+    user_id = message.from_id
+    db = load_db()
+    user = db[str(user_id)]
+    now = int(time.time())
+    if now - user['stats']['last_pensia'] < 86400:
+        wait_time = 86400 - (now - user['stats']['last_pensia'])
+        formatted_time = format_time('час-минута-секунда', wait_time)
+        await message.answer(f'До следующей пенсии осталось {formatted_time}')
+    else:
+        # Проверка стажа
+        if is_eligible(user_id):
+            db[str(user_id)]["balance"] += 6000000000000  # Начисляем пенсию
+            user['stats']['last_pensia'] = now
+            save_db(db)
+            await message.answer("🎉 Вам начислена пенсия: 6.000.000.000.000 монет!")
+        else:
+            first_seen = datetime.strptime(db[str(user_id)]["registered_at"], "%Y-%m-%d")
+            days_left = 30 - (datetime.now() - first_seen).days
+            await message.answer(f"⏳ До пенсии осталось: {days_left} дней.")
+
+def get_btc_price():
+    try:
+        response = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+        data = response.json()
+        return data["bitcoin"]["usd"]*1000000000  
+    except:
+        return 100000000000000  # Дефолтное значение
+import matplotlib.pyplot as plt
+import requests
+import io
+from datetime import datetime, timedelta
+import locale
+import pytz  # Библиотека для работы с часовыми поясами
+
+# Устанавливаем локаль и часовой пояс
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+MOSCOW_TZ = pytz.timezone('Europe/Moscow')
+
+def get_btc_chart():
+    # Текущее время в Москве
+    end_date = datetime.now(MOSCOW_TZ)
+    start_date = end_date - timedelta(days=1)
+    
+    # Получаем данные
+    url = f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from={int(start_date.timestamp())}&to={int(end_date.timestamp())}"
+    response = requests.get(url)
+    data = response.json()
+    
+    # Конвертируем timestamp в московское время
+    timestamps = [datetime.fromtimestamp(point[0]/1000).astimezone(MOSCOW_TZ) for point in data['prices']]
+    prices = [point[1] * 1000000000 for point in data['prices']]  # Умножаем для больших чисел
+
+    # Настройка графика
+    plt.figure(figsize=(12, 6), facecolor='#1e1e1e')
+    ax = plt.axes()
+    ax.set_facecolor('#1e1e1e')
+    
+    # Форматирование оси X (даты)
+    plt.plot(timestamps, prices, color="#00ff0d", linewidth=2)
+    plt.title("Графикс BTC Rodrigo Bot (МСК)", color='white', fontsize=16, pad=20)
+    plt.xlabel("Московское время", color='white')
+    plt.ylabel("Цена ($)", color='white')
+    
+    # Настройка отображения времени
+    ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M', tz=MOSCOW_TZ))
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x)).replace(",", ".")))
+    
+    # Стили осей
+    ax.tick_params(colors='white', axis='both')
+    ax.grid(color="#292929", linestyle='--')
+    
+    # Сохранение
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=120, facecolor='#1e1e1e', bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    return buf
+# Команда /курс
+@bot.on.message(text="биткоин")
+async def show_rate(message: Message):
+    price = get_btc_price()
+    photo = get_btc_chart()
+    photo_uploader = PhotoMessageUploader(bot.api)
+    photo = await photo_uploader.upload(photo)
+    db = load_db()
+    user = db[str(message.from_id)]
+    bts = user['bts']*price
+    keyboard = (Keyboard(inline=True).add(Text('Команды для управления BTC', payload={'command': 'bts_command'}), color=positive)).get_json()
+    await message.answer(f"📊 Курс BTC: 1 BTC = {go_money(price)}$\n\n"
+    f"🪙 На вашем счету: {user['bts']} = {go_money(bts)}$"
+    , keyboard=keyboard, attachment=photo)
+
+@bot.on.message(payload={'command': 'bts_command'})
+async def bts_commans(message: Message):
+
+    await message.answer('Команды для управления BTC:\n\n'
+    '1. Биткоин - меню биткоина\n'
+    '2. Перевести биткоин [@username] [биткоины]\n'
+    '3. Ферма - ферма биткоинов\n'
+    '4. Купить биткоин [кол-во]\n'
+    '5. Продать биткоин [кол-во]'
+    )
+
+@bot.on.private_message(text='ферма')
+async def farm(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    if user['farm']['income'] == 0:
+        keyboard = (Keyboard(inline=True).add(Callback('💰 Купить ферму за 10мм', payload={'farm': 'buy'}), color=positive)).get_json()
+        await message.answer('❌ У вас нет фермы!', keyboard=keyboard)
+    else:
+        keyboard = (Keyboard(inline=True)
+                    .add(Callback('Улучшить ферму', payload={'farm': 'up_level'}), color=positive)
+                    .row()
+                    .add(Text('Включить ферму', payload={'farm': 'start'}))
+                    .row()
+                    .add(Text('Собрать доход', payload={'farm': 'income'}), color=primary)
+                    ).get_json()
+        await message.answer(f'💻 Ферма {user['username']}\n\n'
+                            f'🪙 Доход: {user['farm']['income']} btc/5 часов\n'
+                            f'🔥 Уровень: {user['farm']['level']}\n'
+                            f'💵 Следующее улучшение стоит: {go_money(user['farm']['next_level'])}$\n\n'
+                            f'💰 Заработано: {user['farm']['bank']} BTC'
+                            , keyboard=keyboard
+                            )
+@bot.on.chat_message(text='ферма')
+async def no_farm(message: Message):
+    await message.answer('Только в лс бота.')
+@bot.on.private_message(payload={'farm': 'start'})
+async def farm_start(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    if user['farm']['income'] == 0:
+        await message.answer('У вас нет фермы.')
+    else:
+        if user['farm']['status'] == 'on':
+            await message.answer('❌ Ферма уже включена.')
+        if user['farm']['status'] == 'off':
+            await message.answer('⏳ Вы запустили ферму на 5 часов!')
+            user['farm']['status'] = 'on'
+            user['farm']['last_income'] = int(time.time())
+            save_db(db)
+       
+@bot.on.private_message(payload={'farm': 'income'})
+async def income(message: Message):
+        db = load_db()
+        user = db[str(message.from_id)]
+        last_claim = user["farm"]["last_income"]
+        current_time = int(time.time())
+        hours_passed = (current_time - last_claim) / 3600
+        
+        if hours_passed < 5:
+            await message.answer("⏳ Доход ещё не накоплен! Попробуйте позже.")
+            return
+        else:
+            btc_earned = user["farm"]["income"]
+            user['bts'] += btc_earned
+            user['farm']['status'] = 'off'
+            save_db(db)
+            await message.answer(f'🪙Вы собрали {btc_earned} btc \n😎 Запустите ферму, чтобы заработать ещё')
+
+@bot.on.message(text='продать биткоин <btc>')
+async def sale_btc(message: Message, btc: str):
+    db = load_db()
+    user = db[str(message.from_id)]
+    price = get_btc_price()
+    if btc == None:
+        await message.answer('❌ Не так! Продать биткоин [кол-во]')
+    else:
+        try:
+            btc = float(btc)
+        except Exception as e:
+            await message.answer(f'❌ Ошибка: {e}')
+        
+        btc_user = user['bts']
+        if btc_user < btc:
+            await message.answer('❌ Вам не хватает биткоинов для продажи.')
+        else:
+            await message.answer(f'✅ Вы продали {btc} BTC')
+            user['bts'] -= btc
+            user['balance'] += btc*price
+            save_db(db)
+
+@bot.on.message(text='купить биткоин <btc>')
+async def buy_btc(message: Message, btc: str):
+    db = load_db()
+    user = db[str(message.from_id)]
+    price = get_btc_price()
+    if btc == None:
+        await message.answer('❌ Не так! Купить биткоин [кол-во]')
+    else:
+        try:
+            btc = float(btc)
+        except Exception as e:
+            await message.answer(f'❌ Ошибка: {e}')
+        balance = user['balance']
+        btc_price = btc*price
+        if balance < btc_price:
+            await message.answer('❌ Вам не хватает денег!')
+        else:
+            user['balance'] -= btc_price
+            user['bts'] += btc
+            save_db(db)
+            await message.answer(f'✅ Вы купили {btc} BTC!')
+
+@bot.on.message(text='перевести биткоин <mention> <btc>')
+async def perevbit(message: Message, mention: str, btc: str):
+    db = load_db()
+    user = db[str(message.from_id)]
+    try:
+        id1 = await resolve_resources(mention)
+        id_user = id1.id
+    except:
+        await message.answer('❌ Я не смог найти пользователя.')
+    if str(id_user) not in db:
+        await message.answer('❌ Данный юзер не играет в бота.')
+    else:
+        try:
+            btc = float(btc)
+        except Exception as e:
+            await message.answer(f'❌ Ошибка: {e}')
+        if btc > user['bts']:
+            await message.answer('❌ Вам не хватает биткоинов для перевода')
+        else:
+            db[str(id_user)]['bts'] += btc
+            user['bts'] -= btc
+            save_db(db)
+            await message.answer(f'Вы успешно перевели @id{id_user}(юзеру) биткоины.', disable_mentions=True)
+            await bot.api.messages.send(user_id=id_user, message=f'@id{message.from_id}({user['username']}) перевёл вам биткоины в размере {btc} BTC', random_id=0)
+
+import yoomoney
+YOOMONEY_TOKEN = "ваш_токен"
+WALLET = "4100119211392665"  # Ваш номер кошелька
+client = yoomoney.Client(YOOMONEY_TOKEN)
+async def give_vip(user_id: int, days: int):
+    db = load_db()
+    user = db[str(user_id)]
+    expire_time = int(time.time()) + days * 86400
+    user['vip'] = expire_time
+    save_db(db)
+@bot.on.message(text="Донат")
+@bot.on.message(payload={'shop': 'donat'})
+async def buy_vip(message: Message):
+    await message.answer(
+        "💎 VIP статус на 1 месяц (100 руб)\n\n"
+        "Как оплатить:\n"
+        f"1. Переведите 100 руб на номер {WALLET}\n"
+        f"2. В комментарии укажите: vip_{message.from_id}\n\n"
+        "После оплаты статус активируется автоматически в течение 5 минут! На всякий случай сохраните скриншот перевода. Если не появится, то пришлите @id819016396\n"
+        "Проверить: команда 'вип'"
+    )
+async def check_payments():
+    while True:
+        history = client.operation_history(label="vip_")  # Ищем платежи с меткой
+        
+        for operation in history.operations:
+            if operation.status == "success":
+                user_id = operation.label.split("_")[1]  # Извлекаем ID из метки
+                await give_vip(int(user_id), 30)  # 30 дней VIP
+                
+        await asyncio.sleep(300)  # Проверка каждые 5 минут
+
+@bot.on.message(text='рыбалка')
+async def fishing(message: Message):
+    db = load_db()
+    user = db[str(message.from_id)]
+    keyboard = (Keyboard(inline=True)
+    .add(Callback('Начать ловлю', payload={'fishing': 'start'}), color=positive)
+    ).get_json()
+    await message.answer('🐟 Приветствуем тебя на такой чудесной работе! Вам предстоит ловить рыбу!', keyboard=keyboard)
+    await message.answer(sticker_id=109405)
+
+@bot.on.raw_event(GroupEventType.MESSAGE_EVENT, dataclass=GroupTypes.MessageEvent)
+async def handle_callback(event: GroupTypes.MessageEvent):
+    payload = event.object.payload
+    db = load_db()
+    if 'fishing' in payload:
+        if 'start' in payload['fishing']:
+            if db[str(event.object.user_id)]['stats']['fish'] == False:
+                db[str(event.object.user_id)]['stats']['fish'] = True
+                save_db(db)
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Вы начали ловить рыбу. Ожидайте..')
+                await asyncio.sleep(30)
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Так, что-то там плещется.. Готовьтесь подсекать.')
+                await asyncio.sleep(5)
+                keyboard = (Keyboard(inline=True).add(Callback('Подсечь', payload={'fishing': 'подсечь'}), color=negative)).get_json()
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'ПОДСЕКАЙ', keyboard=keyboard)
+            else:
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext='Вы уже ловите рыбу!')
+        if 'подсечь' in payload['fishing']:
+            keyboard = (Keyboard(inline=True).add(Callback('вытащить', payload={'fishing': 'вытащить'}), color=negative)).get_json()
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'ВЫТАСКИВАЙ', keyboard=keyboard)
+        if 'вытащить' in payload['fishing']:
+            fish = random.choice(['сом', 'лещ', 'плотва', 'щука', 'провал'])
+            if fish == 'сом':
+                photo = "photo-230806544_457239147"
+                income = 100000000000
+                text = '🎣 Ты поймал сома и получил 100.000.000$'
+            if fish == 'лещ':
+                photo = "photo-230806544_457239148"
+                income = 200000000000
+                text = '🎣 Ты поймал леща и получил 200.000.000$'
+            if fish == 'плотва':
+                photo = "photo-230806544_457239149"
+                income = 300000000000
+                text = '🎣 Ты поймал леща и получил 300.000.000$'
+            if fish == 'щука':
+                photo = "photo-230806544_457239150"
+                income = 400000000000
+                text = '🎣 Ты поймал леща и получил 400.000.000$'
+            if fish == 'провал':
+                photo = None
+                income = 0
+                text = '😭 Леска оборвалась и вы ничего не получили('
+            db[str(event.object.user_id)]['balance'] += income
+            db[str(event.object.user_id)]['stats']['fish'] = False
+            save_db(db)
+            keyboard = (Keyboard(inline=True).add(Callback('Ловить ещё', payload={'fishing': 'start'}), color=positive)).get_json()
+            
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'{text}', attachment=photo, keyboard=keyboard)
+    if 'farm' in payload:
+        if 'buy' in payload['farm']:
+            user = db[str(event.object.user_id)]
+            if user['balance'] < 10000000000000:
+                keyboard = (Keyboard(inline=True).add(Callback('Купить ферму за 10мм', payload={'farm': 'buy'}), color=positive)).get_json()
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Вам не хватает денег!', keyboard=keyboard) 
+            else:
+                user['farm']['income'] = 0.0001
+                user['farm']['level'] = 1
+                user['farm']['next_level'] = 500000000000
+                save_db(db)
+                keyboard = (Keyboard(inline=True).add(Callback('Улучшить ферму', payload={'farm': 'up_level'}), color=positive)).get_json()
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Ферма {user['username']}\n\n'
+                            f'Доход: {user['farm']['income']} bts/час\n'
+                            f'Уровень: {user['farm']['level']}\n'
+                            f'Следующее улучшение стоит: {go_money(user['farm']['next_level'])}$', keyboard=keyboard)
+        if 'up' in payload['farm']:
+            user = db[str(event.object.user_id)]
+            cost = user['farm']['next_level']
+            if user['balance'] < cost:
+                keyboard = (Keyboard(inline=True).add(Callback('Улучшить ферму', payload={'farm': 'up_level'}), color=positive)).get_json()
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=
+                            'Вам не хватает денег!\n\n'
+                            f'Ферма {user['username']}\n\n'
+                            f'Доход: {user['farm']['income']} bts/час\n'
+                            f'Уровень: {user['farm']['level']}\n'
+                            f'Следующее улучшение стоит: {go_money(user['farm']['next_level'])}$', keyboard=keyboard)
+            else:
+                user['farm']['next_level'] += 15000000000000
+                user['farm']['level'] += 1
+                user['farm']['income'] += 0.09
+                user['balance'] -= cost
+                save_db(db)
+                keyboard = (Keyboard(inline=True).add(Callback('Улучшить ферму', payload={'farm': 'up_level'}), color=positive)).get_json()
+                await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=
+                            'Вы купили улучшение!\n\n'
+                            f'Ферма {user['username']}\n\n'
+                            f'Доход: {user['farm']['income']} bts/час\n'
+                            f'Уровень: {user['farm']['level']}\n'
+                            f'Следующее улучшение стоит: {go_money(user['farm']['next_level'])}$', keyboard=keyboard)
+                
+    if 'zames' in payload:
+        print(payload)
+        zames_id = payload['zames'].split("_")[1]
+        try:
+            zames = db['игра']['замесы'][str(zames_id)]
+        except KeyError:
+            return await bot.api.messages.send_message_event_answer(
+                event_id=event.object.event_id,
+                user_id=event.object.user_id,
+                peer_id=event.object.peer_id,
+                event_data={"type":"show_snackbar", "text":"Замес не найден!"})
+            
+        now = int(time.time())
+        zames_time = int(zames['time'])  # теперь точно int
+        if now - zames_time > 300:  # Исправлено условие
+            await edit_message(
+                peer_id=event.object.peer_id,
+                message_id=event.object.conversation_message_id,
+                newtext='Вы не успели принять предложение..'
+            )
+            del db['игра']['замесы'][str(zames_id)]  # Удаляем из базы
+            save_db(db)
+            return
+            
+        user_id = zames['1']
+        target_id = zames['2']
+        
+        if event.object.user_id != int(target_id):
+            await bot.api.messages.send_message_event_answer(
+                event_id=event.object.event_id,
+                user_id=event.object.user_id,
+                peer_id=event.object.peer_id,
+                event_data={"type":"show_snackbar", "text":"Эта кнопка не для вас!"})
+            return
+            
+        
+            
+        sm = zames['sm']
+        target = db[str(target_id)]
+        user = db[str(user_id)]
+
+        
+    
+    
+        
+        rand = random.choice(['1', '2', '1', '2'])
+        if rand == '1':
+            message_text = (f"@id{user_id}({user['username']}) победил @id{target_id}({target['username']})\n"
+                            f"Ему достаётся {sm} см")
+            user['piska'] += sm
+            target['piska'] -= sm
+            result = f'Победил {user['username']}'
+            target['stats']['замес'].remove(str(zames_id))
+            user['stats']['замес'].remove(str(zames_id))
+            
+        if rand == '2':
+            message_text = (f"@id{target_id}({target['username']}) победил @id{user_id}({user['username']})\n"
+                            f"Ему достаётся {sm} см")
+            result = f'Победил {target['username']}'
+            target['piska'] += sm
+            user['piska'] -= sm
+            target['stats']['замес'].remove(str(zames_id))
+            user['stats']['замес'].remove(str(zames_id))
+        meme_path = generate_meme(user['username'], target['username'], result)
+        uploader = PhotoMessageUploader(bot.api)
+        photo = await uploader.upload(meme_path)
+        await edit_message(
+            peer_id=event.object.peer_id,
+            message_id=event.object.conversation_message_id,
+            newtext=message_text,
+            keyboard=None,
+            attachment=photo
+        )
+        del db['игра']['замесы'][str(zames_id)]  # Удаляем из базы
+        save_db(db)
+    if 'seyf' in payload:
+        user_id = event.object.user_id
+        db = load_db()
+        user = db[str(user_id)]
+        now = int(time.time())
+        rand = random.randint(1,2)
+        if rand == 1:
+            rand2 = random.randint(1000000000000, 3000000000000)
+            if user['vip'] != 'Нет':
+                rand2 = rand2 * 2
+            user['balance'] += rand2
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'🥳 Вы отгадали код от сейфа и получили {go_money(rand2)}$')
+        if rand == 2:
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext='😭 Отгадать код от сейфа не получилось.')
+            user['stats']['last_seyf'] = now
+        save_db(db)
+    if 'doors' in payload:
+        user_id = event.object.user_id
+        db = load_db()
+        user = db[str(user_id)]
+        now = int(time.time())
+        
+        rand = random.randint(1,3)
+        if rand == 1:
+            rand2 = random.randint(5000000000000, 7000000000000)
+            if user['vip'] == 'Нет':
+                user['balance'] += rand2
+            else:
+                user['balance'] += rand2 * 2
+            
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'🥳 Вы отгадали дверь и нашли за ней {go_money(rand2)}$')
+            
+        if rand == 2:
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'😱😱😱 Вы открыли дверь и нашли за ней 200.000.000.000.000$! ОМАГАД! СУПЕР ВЫИГРЫШ! \n🫠 Ладно, я пошутил)')
+        if rand == 3:
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'🐶🐶 Вы открыли дверь, а там миленькие собачки). Вы на них засмотрелись и у вас стащили деньги.')
+        user['stats']['last_doors'] = now
+        save_db(db)
+    if 'item' in payload:
+        item = payload['item']
+        price = payload['price']
+        user = db[str(event.object.user_id)]
+        user['balance'] += price
+        save_db(db)
+        keyboard = generate_trash_keyboard()
+        await edit_message(peer_id=event.object.peer_id, message_id = event.object.conversation_message_id, newtext=f'💸 Вы заработали {go_money(price)}$\n💰 Баланс: {go_money(user['balance'])}$\nПродолжайте дальше собирать..', keyboard=keyboard)
+    if 'taksi' in payload:
+        user = db[str(event.object.user_id)]
+        if user['stats']['taksi'] == False:
+            user['stats']['taksi'] = True
+            save_db(db)
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Вы повезли пассажира.\n⏳ Ориентировочное время: 40 секунд')
+            await asyncio.sleep(40)
+            rand = random.randint(100000000000, 500000000000)
+            user['balance'] += rand
+            save_db(db)
+            keyboard = (Keyboard(inline=True)
+            .add(Callback('Продолжать', payload={'taksi': 'start'}), color=positive)).get_json()
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'Вы привезли пассажира. Вы заработали: {go_money(rand)}$\nВаш баланс: {go_money(user['balance'])}', keyboard=keyboard)
+        else:
+            await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext='Вы уже везёте пассажира')
+    if 'clan' in payload:
+        user_id = event.object.user_id
+        user = db[str(event.object.user_id)]
+        db_clan = load_db_clans()
+        id_clan = payload['clan']
+        clan = db_clan[str(id_clan)]
+        await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext=f'🥳 Вы вступили в клан "{clan['clan']}"')
+        user['clan'] = clan['clan']
+        user['id_clan'] = str(id_clan)
+        user['role'] = 'Новичок'
+        clan['users'] += 1
+        clan['users_ids'].append(str(user_id))
+        save_db(db)
+        save_db_clans(db_clan)
+        await bot.api.messages.send(user_id=int(clan['leader']), message=f'🥳 @id{user_id}({user['username']}) вступил в ваш клан!', random_id=0)
+    if 'clan_no' in payload:
+        db_clan = load_db_clans()
+        user_id = event.object.user_id
+        id_clan = payload['clan_no']
+        clan = db_clan[str(id_clan)]
+        await edit_message(peer_id=event.object.peer_id, message_id=event.object.conversation_message_id, newtext='😢 Вы отказались вступить в клан.')
+        await bot.api.messages.send(user_id=int(clan['leader']), message=f'😢 @id{user_id}({user['username']}) отказался в ваш клан!', random_id=0)
+
+
+@bot.on.message(text='магазин домов')
+async def shop_houses(message: Message):
+    keyboard1 = (Keyboard(inline=True).add(Text('Купить', payload={'shop_houses': '1'})))
+    template  = template_gen(
+    TemplateElement(
+        buttons=keyboard1,  title = 'Дом бомжа', description='1.000.000.000.000$', photo_id='photo-230806544_457239170', action={'type': 'open'}
+    ))
+    await message.answer('Магазин домов:', template=template)
+
+        
 if __name__ == "__main__":    
     loop = asyncio.get_event_loop()
     loop.create_task(task_cleanup())
+    loop.create_task(check_payments())
     print("Бот запущен...")
     bot.run_forever()
