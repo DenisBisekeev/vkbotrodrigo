@@ -2409,7 +2409,7 @@ import locale
 import pytz  # Библиотека для работы с часовыми поясами
 
 # Устанавливаем локаль и часовой пояс
-locale.setlocale(locale.LC_ALL, 'eng_Eng.UTF-8')
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 def get_btc_chart():
