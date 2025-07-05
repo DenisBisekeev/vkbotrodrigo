@@ -2409,7 +2409,7 @@ import locale
 import pytz  # Библиотека для работы с часовыми поясами
 
 # Устанавливаем локаль и часовой пояс
-locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+locale.setlocale(locale.LC_ALL, 'eng_Eng.UTF-8')
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
 def get_btc_chart():
@@ -2433,9 +2433,9 @@ def get_btc_chart():
     
     # Форматирование оси X (даты)
     plt.plot(timestamps, prices, color="#00ff0d", linewidth=2)
-    plt.title("Графикс BTC Rodrigo Bot (МСК)", color='white', fontsize=16, pad=20)
-    plt.xlabel("Московское время", color='white')
-    plt.ylabel("Цена ($)", color='white')
+    plt.title("BTC Rodrigo Bot (MSK)", color='white', fontsize=16, pad=20)
+    plt.xlabel("Time", color='white')
+    plt.ylabel("Price ($)", color='white')
     
     # Настройка отображения времени
     ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M', tz=MOSCOW_TZ))
